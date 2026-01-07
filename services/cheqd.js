@@ -75,7 +75,7 @@ class CheqdService {
 
     // Create unencrypted status list without payment conditions
     const statusListResponse = await fetch(
-      `${CHEQD_STUDIO_API}/credential-status/create/unencrypted?statusPurpose=revocation`,
+      `${CHEQD_STUDIO_API}/credential-status/create/unencrypted?listType=StatusList2021&statusPurpose=revocation`,
       {
         method: 'POST',
         headers: {
