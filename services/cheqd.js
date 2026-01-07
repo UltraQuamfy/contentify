@@ -69,29 +69,13 @@ class CheqdService {
     };
   }
 
-  // Create encrypted status list with payment conditions
+  // Create unencrypted status list (no payment rails for now)
   async createEncryptedStatusList(issuerDID, paymentAmount) {
-    console.log('Creating encrypted status list with payment rails...');
+    console.log('Creating status list (payment rails disabled for testing)...');
 
-    // Get account info for payment address
-    const accountResponse = await fetch(`${CHEQD_STUDIO_API}/account`, {
-      method: 'GET',
-      headers: { 'x-api-key': this.apiKey }
-    });
-
-    if (!accountResponse.ok) {
-      throw new Error('Failed to fetch account info');
-    }
-
-    const accountData = await accountResponse.json();
-    const paymentAddress = accountData.address;
-
-    // Convert CHEQ to ncheq (1 CHEQ = 1,000,000,000 ncheq)
-    const paymentInNcheq = Math.floor(paymentAmount * 1000000000);
-
-    // Create encrypted status list with payment conditions
+    // Create unencrypted status list without payment conditions
     const statusListResponse = await fetch(
-      `${CHEQD_STUDIO_API}/credential-status/create/encrypted?statusPurpose=revocation`,
+      `${CHEQD_STUDIO_API}/credential-status/create/unencrypted?statusPurpose=revocation`,
       {
         method: 'POST',
         headers: {
@@ -102,15 +86,7 @@ class CheqdService {
           did: issuerDID,
           statusListName: `contentify-${Date.now()}`,
           length: 140000,
-          encoding: 'base64url',
-          statusListVersion: '2021',
-          paymentConditions: JSON.stringify([{
-  feePaymentAddress: paymentAddress,
-  feePaymentAmount: `${paymentInNcheq}ncheq`,
-  feePaymentWindow: 600,
-  intervalInSeconds: 600,
-  type: 'timelockPayment'
-          }])
+          encoding: 'base64url'
         })
       }
     );
@@ -124,7 +100,7 @@ class CheqdService {
 
     return {
       statusListCredential: statusListData.statusListCredential,
-      paymentAddress: paymentAddress,
+      paymentAddress: 'Payment rails disabled (testing mode)',
       resourceId: statusListData.resource?.id
     };
   }
@@ -166,7 +142,7 @@ class CheqdService {
     const authenticityScore = this.calculateAuthenticityScore(content);
     const credentialId = `urn:uuid:${crypto.randomUUID()}`;
 
-    // Create encrypted status list with payment rails
+    // Create status list (without payment rails for now)
     const statusList = await this.createEncryptedStatusList(aiProviderDID, paymentAmount);
 
     // Build W3C Verifiable Credential with C2PA extensions
@@ -202,7 +178,7 @@ class CheqdService {
             'AI-generated content',
             'Cryptographic content hash',
             'cheqd network anchored',
-            'Payment rails enabled'
+            'Payment rails disabled (testing mode)'
           ]
         }
       },
@@ -214,8 +190,8 @@ class CheqdService {
         statusListCredential: statusList.statusListCredential
       },
       paymentRails: {
-        enabled: true,
-        verificationCost: `${paymentAmount} CHEQ`,
+        enabled: false,
+        verificationCost: `${paymentAmount} CHEQ (disabled for testing)`,
         paymentAddress: statusList.paymentAddress,
         network: `cheqd-${this.network}`
       }
