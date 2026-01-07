@@ -105,10 +105,11 @@ class CheqdService {
           encoding: 'base64url',
           statusListVersion: '2021',
           paymentConditions: JSON.stringify([{
-            feePaymentAddress: paymentAddress,
-            feePaymentAmount: `${paymentInNcheq}ncheq`,
-            intervalInSeconds: 600,
-            type: 'timelockPayment'
+  feePaymentAddress: paymentAddress,
+  feePaymentAmount: `${paymentInNcheq}ncheq`,
+  feePaymentWindow: 600,
+  intervalInSeconds: 600,
+  type: 'timelockPayment'
           }])
         })
       }
