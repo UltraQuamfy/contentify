@@ -87,15 +87,6 @@ app.post('/api/credentials/create', asyncHandler(async (req, res) => {
     // Initialize cheqd service with user's API key
     const cheqd = new CheqdService(cheqdApiKey, process.env.CHEQD_NETWORK || 'testnet');
 
-    // Get or create user (for demo, using API key as identifier)
-    let user;
-    if (userApiKey) {
-      user = await db.getUserByApiKey(userApiKey);
-      if (!user) {
-        user = await db.createUser(null, userApiKey);
-      }
-    }
-
     // Get AI provider from database
     let provider = await db.getAIProvider(aiProvider);
     if (!provider) {
@@ -153,11 +144,10 @@ app.post('/api/credentials/create', asyncHandler(async (req, res) => {
       }
     });
 
-    // Save to database
-    let dbCredential = null;
-    if (user) {
-      dbCredential = await db.createCredential({
-        userId: user.id,
+    // Save to database (without requiring user)
+    try {
+      const dbCredential = await db.createCredential({
+        userId: null, // No user required for now
         aiProviderId: provider.id,
         credentialId: credential.id,
         issuerDid: did,
@@ -172,16 +162,10 @@ app.post('/api/credentials/create', asyncHandler(async (req, res) => {
           qrCode: qrCodeDataUrl
         }
       });
-
-      // Decrement user credits
-      await db.decrementUserCredits(user.id);
-
-      // Record analytics
-      await db.recordAnalyticsEvent(user.id, 'credential_created', {
-        aiProvider: aiProvider,
-        authenticityScore: authenticityScore,
-        paymentAmount: paymentAmount
-      });
+      console.log('✅ Credential saved to database!');
+    } catch (dbError) {
+      console.error('⚠️ Failed to save credential to database:', dbError.message);
+      // Continue anyway - credential was created on cheqd
     }
 
     // Return response
@@ -275,8 +259,12 @@ app.post('/api/credentials/:credentialId/verify', asyncHandler(async (req, res) 
     message: 'Verification recorded',
     credential: {
       id: credential.credential_id,
+      issuerDID: credential.issuer_did,
+      issuerName: credential.ai_provider_name,
       status: credential.status,
-      authenticityScore: credential.authenticity_score
+      authenticityScore: credential.authenticity_score,
+      contentHash: credential.content_hash,
+      timestamp: credential.created_at
     }
   });
 }));
@@ -337,7 +325,7 @@ app.listen(PORT, () => {
   console.log(`
 ╔═══════════════════════════════════════════════════╗
 ║                                                   ║
-║   🔐 Contentify Backend Server                   ║
+║   📦 Contentify Backend Server                   ║
 ║                                                   ║
 ║   Port: ${PORT}                                      ║
 ║   Environment: ${process.env.NODE_ENV || 'development'}                       ║
