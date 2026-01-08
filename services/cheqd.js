@@ -98,10 +98,15 @@ class CheqdService {
 
     const statusListData = await statusListResponse.json();
 
+    // Extract the resourceURI from the response
+    const statusListCredential = statusListData.resourceMetadata?.resourceURI || 
+                                 statusListData.resource?.resourceURI ||
+                                 `${issuerDID}/resources/${statusListData.resourceMetadata?.resourceId}`;
+
     return {
-      statusListCredential: statusListData.statusListCredential,
+      statusListCredential: statusListCredential,
       paymentAddress: 'Payment rails disabled (testing mode)',
-      resourceId: statusListData.resource?.id
+      resourceId: statusListData.resourceMetadata?.resourceId || statusListData.resource?.id
     };
   }
 
