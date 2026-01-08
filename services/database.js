@@ -2,22 +2,59 @@ const { Pool } = require('pg');
 
 class DatabaseService {
   constructor(connectionString) {
+    if (!connectionString) {
+      console.error('❌ DATABASE_URL is not set!');
+      this.pool = null;
+      return;
+    }
+
     this.pool = new Pool({
       connectionString: connectionString,
       ssl: process.env.NODE_ENV === 'production' ? { rejectUnauthorized: false } : false
     });
+
+    // Test connection immediately
+    this.testConnection();
+  }
+
+  async testConnection() {
+    try {
+      const result = await this.pool.query('SELECT NOW()');
+      console.log('✅ Database connected successfully at', result.rows[0].now);
+    } catch (err) {
+      console.error('❌ Database connection failed:', err.message);
+    }
+  }
+
+  async healthCheck() {
+    try {
+      await this.pool.query('SELECT 1');
+      return true;
+    } catch (error) {
+      return false;
+    }
   }
 
   async createUser(email, apiKey) {
-    const query = `INSERT INTO users (email, api_key) VALUES ($1, $2) RETURNING *`;
-    const result = await this.pool.query(query, [email, apiKey]);
-    return result.rows[0];
+    try {
+      const query = `INSERT INTO users (email, api_key) VALUES ($1, $2) RETURNING *`;
+      const result = await this.pool.query(query, [email, apiKey]);
+      return result.rows[0];
+    } catch (err) {
+      console.error('Error creating user:', err.message);
+      throw err;
+    }
   }
 
   async getUserByApiKey(apiKey) {
-    const query = 'SELECT * FROM users WHERE api_key = $1';
-    const result = await this.pool.query(query, [apiKey]);
-    return result.rows[0];
+    try {
+      const query = 'SELECT * FROM users WHERE api_key = $1';
+      const result = await this.pool.query(query, [apiKey]);
+      return result.rows[0];
+    } catch (err) {
+      console.error('Error getting user:', err.message);
+      return null;
+    }
   }
 
   async updateUserCheqdKey(userId, cheqdApiKey) {
@@ -33,9 +70,14 @@ class DatabaseService {
   }
 
   async getAIProvider(name) {
-    const query = 'SELECT * FROM ai_providers WHERE name = $1 AND active = true';
-    const result = await this.pool.query(query, [name]);
-    return result.rows[0];
+    try {
+      const query = 'SELECT * FROM ai_providers WHERE name = $1 AND active = true';
+      const result = await this.pool.query(query, [name]);
+      return result.rows[0];
+    } catch (err) {
+      console.error('Error getting AI provider:', err.message);
+      return null;
+    }
   }
 
   async getAllAIProviders() {
@@ -51,15 +93,33 @@ class DatabaseService {
   }
 
   async createCredential({ userId, aiProviderId, credentialId, issuerDid, contentHash, contentPreview, authenticityScore, paymentAmount, paymentAddress, statusListUrl, metadata }) {
-    const query = `INSERT INTO credentials (user_id, ai_provider_id, credential_id, issuer_did, content_hash, content_preview, authenticity_score, payment_amount, payment_address, status_list_url, metadata) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11) RETURNING *`;
-    const result = await this.pool.query(query, [userId, aiProviderId, credentialId, issuerDid, contentHash, contentPreview, authenticityScore, paymentAmount, paymentAddress, statusListUrl, JSON.stringify(metadata)]);
-    return result.rows[0];
+    try {
+      console.log('💾 Saving credential to database:', credentialId);
+      const query = `INSERT INTO credentials (user_id, ai_provider_id, credential_id, issuer_did, content_hash, content_preview, authenticity_score, payment_amount, payment_address, status_list_url, metadata) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11) RETURNING *`;
+      const result = await this.pool.query(query, [userId, aiProviderId, credentialId, issuerDid, contentHash, contentPreview, authenticityScore, paymentAmount, paymentAddress, statusListUrl, JSON.stringify(metadata)]);
+      console.log('✅ Credential saved successfully!');
+      return result.rows[0];
+    } catch (err) {
+      console.error('❌ Error saving credential:', err.message);
+      throw err;
+    }
   }
 
   async getCredential(credentialId) {
-    const query = `SELECT c.*, u.email as user_email, ap.display_name as ai_provider_name FROM credentials c LEFT JOIN users u ON c.user_id = u.id LEFT JOIN ai_providers ap ON c.ai_provider_id = ap.id WHERE c.credential_id = $1`;
-    const result = await this.pool.query(query, [credentialId]);
-    return result.rows[0];
+    try {
+      console.log('🔍 Looking up credential:', credentialId);
+      const query = `SELECT c.*, u.email as user_email, ap.display_name as ai_provider_name FROM credentials c LEFT JOIN users u ON c.user_id = u.id LEFT JOIN ai_providers ap ON c.ai_provider_id = ap.id WHERE c.credential_id = $1`;
+      const result = await this.pool.query(query, [credentialId]);
+      if (result.rows[0]) {
+        console.log('✅ Credential found!');
+      } else {
+        console.log('❌ Credential not found');
+      }
+      return result.rows[0];
+    } catch (err) {
+      console.error('Error getting credential:', err.message);
+      return null;
+    }
   }
 
   async getUserCredentials(userId, limit = 50, offset = 0) {
@@ -110,14 +170,11 @@ class DatabaseService {
     return result.rows[0];
   }
 
-  async healthCheck() {
-    const query = 'SELECT NOW()';
-    const result = await this.pool.query(query);
-    return result.rows[0];
-  }
-
   async close() {
-    await this.pool.end();
+    if (this.pool) {
+      await this.pool.end();
+      console.log('🔌 Database connection closed');
+    }
   }
 }
 
